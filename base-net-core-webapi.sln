@@ -9,7 +9,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "base-app-common", "base-app
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "base-app-service", "base-app-service\base-app-service.csproj", "{5D2BECCE-B13E-43FC-9C03-0404D4A00A04}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "base-app-webapi", "base-app-webapi\base-app-webapi.csproj", "{607EF034-FAEE-4F78-8D17-99FB7FC8810D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "base-app-webapi", "base-app-webapi\base-app-webapi.csproj", "{607EF034-FAEE-4F78-8D17-99FB7FC8810D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
