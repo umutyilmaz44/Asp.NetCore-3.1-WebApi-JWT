@@ -2,7 +2,6 @@
 {
     public static class GrandFilterType
     {
-        // Device
         public const string Or = "Or";
         public const string And = "And";
     }

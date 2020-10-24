@@ -128,7 +128,7 @@ namespace base_app_webapi
                 ui.RoutePrefix = string.Empty;
             });
 
-            //app.UseMiddleware<IpSafeListMiddleware>(Configuration["ClientIpSafeList"]);
+            app.UseMiddleware<IpSafeListMiddleware>(Configuration["ClientIpSafeList"]);
 
             app.UseExceptionHandler(config =>
             {
