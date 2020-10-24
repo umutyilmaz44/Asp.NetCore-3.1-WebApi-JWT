@@ -7,6 +7,7 @@ using AutoMapper;
 using base_app_repository.Entities;
 using base_app_service;
 using base_app_webapi.Helper;
+using base_app_webapi.Middlewares;
 using base_app_webapi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
