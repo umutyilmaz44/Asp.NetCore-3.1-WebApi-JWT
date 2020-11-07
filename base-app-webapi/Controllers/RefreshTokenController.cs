@@ -2,8 +2,9 @@
 using base_app_common.dto.refreshtoken;
 using base_app_service;
 using base_app_service.Bo;
-using base_app_webapi.Models;
+using base_app_webapi.Helper;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
@@ -14,19 +15,20 @@ namespace base_app_webapi.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
-    public class RefreshTokenController : BaseController
+    [AuthorizeExt]
+    public class UserTokenController : BaseController
     {
-        public RefreshTokenController(IServiceManager serviceManager, ILogger<BaseController> logger) : base(serviceManager, logger)
+        public UserTokenController(IServiceManager serviceManager, ILogger<BaseController> logger) : base(serviceManager, logger)
         {
         }
 
         // GET: api/Users/5
         [HttpGet("Get/{id}")]
-        [GrandAuthorize(GrandPermission.EndpointPermission, Grands.RefreshTokenRead)]
-        public async Task<ActionResult<RefreshTokenDto>> Get(long id)
+        [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserTokenRead)]
+        public async Task<GenericResponse<UserTokenDto>> Get(long id)
         {
-            RefreshTokenBo bo = null;
-            ServiceResult<RefreshTokenBo> result = await serviceManager.RefreshToken_Service.GetByIdAsync(id);
+            UserTokenBo bo = null;
+            ServiceResult<UserTokenBo> result = await serviceManager.UserToken_Service.GetByIdAsync(id);
             if (result.Success)
             {
                 bo = result.Data;
@@ -38,19 +40,19 @@ namespace base_app_webapi.Controllers
 
             if (bo == null)
             {
-                return NotFound();
+                return GenericResponse<UserTokenDto>.Error(ResultType.Error, "User Not Found!", "RT_G_01", StatusCodes.Status404NotFound);
             }
 
-            return RefreshTokenBo.ConvertToDto(bo);
+            return GenericResponse<UserTokenDto>.Ok(UserTokenBo.ConvertToDto(bo));
         }
 
        // POST: api/Users
        [HttpPost("Create")]
-       [GrandAuthorize(GrandPermission.EndpointPermission, Grands.RefreshTokenCreate)]
-        public async Task<ActionResult<RefreshTokenDto>> Post([FromBody] RefreshTokenDto dto)
+       [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserTokenCreate)]
+        public async Task<GenericResponse<UserTokenDto>> Post([FromBody] UserTokenDto dto)
         {
-            RefreshTokenBo bo = RefreshTokenBo.ConvertToBusinessObject(dto);
-            ServiceResult<RefreshTokenBo> result = await serviceManager.RefreshToken_Service.CreateAsync(bo);
+            UserTokenBo bo = UserTokenBo.ConvertToBusinessObject(dto);
+            ServiceResult<UserTokenBo> result = await serviceManager.UserToken_Service.CreateAsync(bo);
             if (result.Success)
             {
                 bo = result.Data;
@@ -59,65 +61,64 @@ namespace base_app_webapi.Controllers
             }
             else
             {
-                return BadRequest(result.Error);
+                return GenericResponse<UserTokenDto>.Error(ResultType.Error, result.Error, "RT_PST_01", StatusCodes.Status500InternalServerError);
             }
 
             if (bo == null)
             {
-                return NotFound();
+                return GenericResponse<UserTokenDto>.Error(ResultType.Error, "NOt Found!", "RT_PST_02", StatusCodes.Status404NotFound);
             }
 
-            return RefreshTokenBo.ConvertToDto(bo);
+            return GenericResponse<UserTokenDto>.Ok(UserTokenBo.ConvertToDto(bo));
         }
 
         /// PUT: api/Users/5
         ///  To protect from overposting attacks, please enable the specific properties you want to bind to, for
         /// more details see https://aka.ms/RazorPagesCRUD.
         [HttpPut("Update/{id}")]
-        [GrandAuthorize(GrandPermission.EndpointPermission, Grands.RefreshTokenUpdate)]
-        public async Task<IActionResult> Put(long id, RefreshTokenDto dto)
+        [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserTokenUpdate)]
+        public async Task<GenericResponse> Put(long id, UserTokenDto dto)
         {
-            return BadRequest();
             if (id != dto.Id)
             {
-                return BadRequest();
+                return GenericResponse.Error(ResultType.Error, "Ids are mismatch!", "RT_PT_01", StatusCodes.Status500InternalServerError);
             }
             try
             {
-                RefreshTokenBo bo = RefreshTokenBo.ConvertToBusinessObject(dto);
-                ServiceResult serviceResult = await serviceManager.RefreshToken_Service.UpdateAsync(id, bo);
+                UserTokenBo bo = UserTokenBo.ConvertToBusinessObject(dto);
+                ServiceResult serviceResult = await serviceManager.UserToken_Service.UpdateAsync(id, bo);
                 if (serviceResult.Success)
                 {
                     await serviceManager.CommitAsync();
 
-                    return Ok();
+                    return GenericResponse.Ok();
                 }
                 else
                 {
-                    return BadRequest(serviceResult.Error);
+                    return GenericResponse.Error(ResultType.Error, serviceResult.Error, "RT_PT_02", StatusCodes.Status500InternalServerError);
                 }
             }
             catch (Exception ex)
             {
                 Log(ex.Message, LogLevel.Error, this.ControllerContext.RouteData.Values);
-                return BadRequest(ex.Message);
+                return GenericResponse.Error(ResultType.Error, ex.Message, "RT_PT_03", StatusCodes.Status500InternalServerError);
             }
         }
 
         // DELETE: api/Users/5
         [HttpDelete("Delete/{id}")]
-        [GrandAuthorize(GrandPermission.EndpointPermission, Grands.RefreshTokenDelete)]
-        public async Task<ActionResult> Delete(long id)
+        [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserTokenDelete)]
+        public async Task<GenericResponse> Delete(long id)
         {
-            ServiceResult serviceResult = await serviceManager.RefreshToken_Service.DeleteAsync(id);
+            ServiceResult serviceResult = await serviceManager.UserToken_Service.DeleteAsync(id);
             if (serviceResult.Success)
             {
-                return Ok();
+                return GenericResponse.Ok();
             }
             else
             {
                 Log(serviceResult.Error, LogLevel.Error, this.ControllerContext.RouteData.Values);
-                return BadRequest(serviceResult.Error);
+                return GenericResponse.Error(ResultType.Error, serviceResult.Error, "RT_DLT_01", StatusCodes.Status500InternalServerError);
             }
         }
     }

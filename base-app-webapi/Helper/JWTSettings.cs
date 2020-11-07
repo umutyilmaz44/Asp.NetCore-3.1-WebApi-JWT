@@ -1,4 +1,4 @@
-namespace base_app_webapi.Models
+namespace base_app_webapi.Helper
 {
     public class JWTSettings
     {

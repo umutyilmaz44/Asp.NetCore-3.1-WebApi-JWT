@@ -1,4 +1,4 @@
-﻿namespace base_app_webapi.Models
+﻿namespace base_app_webapi.Helper
 {
     public static class GrandFilterType
     {
@@ -34,11 +34,11 @@
         public const string UserLoginRead = "14";
         public const string UserLoginUpdate = "15";
         public const string UserLoginDelete = "16";
-        // RefreshToken
-        public const string RefreshTokenCreate = "17";
-        public const string RefreshTokenRead = "18";
-        public const string RefreshTokenUpdate = "19";
-        public const string RefreshTokenDelete = "20";        
+        // UserToken
+        public const string UserTokenCreate = "17";
+        public const string UserTokenRead = "18";
+        public const string UserTokenUpdate = "19";
+        public const string UserTokenDelete = "20";        
         // Page
         public const string PageCreate = "21";
         public const string PageRead = "22";

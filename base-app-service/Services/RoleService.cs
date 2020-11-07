@@ -48,7 +48,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult> DeleteAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult(false, "Id is empty!");
 
             try
@@ -105,7 +105,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult<RoleBo>> GetByIdAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult<RoleBo>(null, false, "Id is empty!");
 
             try

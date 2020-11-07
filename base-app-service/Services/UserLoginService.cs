@@ -55,7 +55,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult> DeleteAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult(false, "Id is empty!");
 
             try
@@ -117,7 +117,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult<UserLoginBo>> GetByIdAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult<UserLoginBo>(null, false, "Id is empty!");
 
             try
@@ -126,8 +126,8 @@ namespace base_app_service.Services
                 if (entity != null)
                 {
                     entity.Password = "";
-                    var refreshToken = await repositoryManager.RefreshTokenRepository.GetLastByUserIdAsync(id);
-                    entity.RefreshToken = new List<RefreshToken>() { refreshToken };
+                    var UserToken = await repositoryManager.UserTokenRepository.GetLastByUserIdAsync(id);
+                    entity.UserToken = new List<UserToken>() { UserToken };
                     entity.Password = "";
                     UserLoginBo bo = mapper.Map<UserLoginBo>(entity);
                     return new ServiceResult<UserLoginBo>(bo, true);

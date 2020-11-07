@@ -11,7 +11,7 @@ namespace base_app_service.Bo
     {
         public UserBo()
         {
-            RefreshToken = new HashSet<RefreshTokenBo>();
+            UserToken = new HashSet<UserTokenBo>();
             UserRole = new HashSet<UserRoleBo>();
             UserLogin = new HashSet<UserLoginBo>();
         }
@@ -30,7 +30,7 @@ namespace base_app_service.Bo
         [JsonIgnore]
         public virtual ICollection<UserLoginBo> UserLogin { get; set; }
         [JsonIgnore]
-        public ICollection<RefreshTokenBo> RefreshToken { get; set; }
+        public ICollection<UserTokenBo> UserToken { get; set; }
         [JsonIgnore]
         public ICollection<UserRoleBo> UserRole { get; set; }
 
@@ -78,9 +78,9 @@ namespace base_app_service.Bo
             return bo;
         }
 
-        public static TokenUserDto ConvertToTokenUserDto(UserBo bo)
+        public static TokenResponseDto ConvertToTokenResponseDto(UserBo bo)
         {
-            TokenUserDto tokenUserDto = new TokenUserDto();
+            TokenResponseDto tokenUserDto = new TokenResponseDto();
             tokenUserDto.Id = bo.Id;
             tokenUserDto.FirstName = bo.FirstName;
             tokenUserDto.MiddleName = bo.MiddleName;

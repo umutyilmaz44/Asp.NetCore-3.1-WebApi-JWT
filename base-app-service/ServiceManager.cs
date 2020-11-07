@@ -6,6 +6,7 @@ using base_app_service.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -32,6 +33,15 @@ namespace base_app_service
                     userid = httpContextAccessor.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
             }   
             serviceContext.AddItem("CurrentUserId", userid);
+
+            string token = "";
+            if (httpContextAccessor != null && httpContextAccessor.HttpContext != null && httpContextAccessor.HttpContext.Request != null)
+            {                
+                token = httpContextAccessor.HttpContext.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+                if(string.IsNullOrEmpty(token))
+                    token = "";
+            }   
+            serviceContext.AddItem("Token", token);
 
             repositoryManager = new RepositoryManager(context);
         }
@@ -154,17 +164,17 @@ namespace base_app_service
         }
         #endregion
 
-        #region RefreshTokenService
-        private RefreshTokenService refreshTokenService;
+        #region UserTokenService
+        private UserTokenService userTokenService;
 
-        RefreshTokenService IServiceManager.RefreshToken_Service
+        UserTokenService IServiceManager.UserToken_Service
         {
             get
             {
-                if (this.refreshTokenService == null)
-                    refreshTokenService = new RefreshTokenService(serviceContext, this);
+                if (this.userTokenService == null)
+                    userTokenService = new UserTokenService(serviceContext, this);
 
-                return refreshTokenService;
+                return userTokenService;
             }
         }
         #endregion

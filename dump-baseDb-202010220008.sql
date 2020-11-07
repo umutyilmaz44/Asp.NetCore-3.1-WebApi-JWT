@@ -1059,3 +1059,20 @@ GRANT ALL ON SCHEMA public TO PUBLIC;
 -- PostgreSQL database dump complete
 --
 
+ALTER TABLE public.refresh_token RENAME COLUMN "token" TO access_token;
+ALTER TABLE public.refresh_token ADD refresh_token varchar NOT NULL;
+ALTER TABLE public.refresh_token ADD is_logout bool NOT NULL DEFAULT false;
+ALTER TABLE public.refresh_token ADD login_time timestamp NULL DEFAULT now();
+ALTER TABLE public.refresh_token ADD logout_time timestamp NULL DEFAULT now();
+
+ALTER TABLE public.refresh_token RENAME TO user_token;
+
+CREATE INDEX user_token_refresh_token_idx ON public.user_token (refresh_token,user_id);
+
+update grand set grand_name = 'UserToken-Create' where id=17
+update grand set grand_name = 'UserToken-Delete' where id=18
+update grand set grand_name = 'UserToken-Read' where id=19
+update grand set grand_name = 'UserToken-Update' where id=20
+
+
+

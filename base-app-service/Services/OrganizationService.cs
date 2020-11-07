@@ -48,13 +48,13 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult> DeleteAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult(false, "Id is empty!");
 
             try
             {
                 await repositoryManager.OrganizationRepository.DeleteAsync(id);
-                repositoryManager.CommitAsync();
+                await repositoryManager.CommitAsync();
 
                 return new ServiceResult(true);
             }
@@ -106,7 +106,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult<OrganizationBo>> GetByIdAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult<OrganizationBo>(null, false, "Id is empty!");
 
             try

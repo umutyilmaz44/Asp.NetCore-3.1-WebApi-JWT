@@ -5,8 +5,9 @@ using base_app_common.dto.user;
 using base_app_repository.Entities;
 using base_app_service;
 using base_app_service.Bo;
-using base_app_webapi.Models;
+using base_app_webapi.Helper;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +29,7 @@ namespace base_app_webapi.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
+    [AuthorizeExt]
     public class UserController : BaseController
     {
         private readonly JWTSettings jwtSettings;
@@ -39,13 +41,12 @@ namespace base_app_webapi.Controllers
 
         #region Authentication   
 
-        // POST: api/Authenticate/
+        // POST: api/User/GetToken/
         [HttpPost("GetToken")]
         [AllowAnonymous]
-        public async Task<ActionResult<TokenUserDto>> GetToken([FromBody] TokenDto tokenDto)
+        public async Task<GenericResponse<TokenResponseDto>> GetToken([FromBody] TokenDto tokenDto)
         {
-            UserBo user = null;
-            TokenUserDto tokenUserDto = null;
+            UserBo user = null;            
             ServiceResult<IEnumerable<UserBo>> result;
 
             FilterCriteria filterCriteria = new FilterCriteria();
@@ -64,99 +65,221 @@ namespace base_app_webapi.Controllers
 
             if (user == null)
             {
-                return NotFound("User Not Found!");
-            }
-           
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, "Not Found!", "U_GT_01", StatusCodes.Status404NotFound);
+            }          
             
             Microsoft.AspNetCore.Identity.PasswordVerificationResult verificationResult = passwordHasher.VerifyHashedPassword(user, user.Password, tokenDto.Password);
             if (verificationResult == Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed)
-                return NotFound("Password verification failed!");
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, "Password verification failed!", "U_GT_02", StatusCodes.Status404NotFound);
+            }                       
+
+            ServiceResult<TokenResponseDto> userTokenResult = await GetTokenResponseAsync(user);
+            if(!userTokenResult.Success)
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, userTokenResult.Error, "U_GT_03", StatusCodes.Status500InternalServerError);
+            }
+
+            return GenericResponse<TokenResponseDto>.Ok((userTokenResult.Data));
+        }
+
+        // POST: api/User/RefreshToken/
+        [HttpPost("RefreshToken")]
+        public async Task<GenericResponse<TokenResponseDto>> RefreshToken(string refresh_token)
+        {
+            //ServiceResult<UserBo> userResult = await GetUserFromAccessToken(refreshRequestDto.Access_Token);
+            if(currentUserId <= 0)
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, "User not found into the token!", "U_RT_01", StatusCodes.Status404NotFound);
+            }
+
+            string access_token = serviceManager.serviceContext.Items["Token"].ToString();
+            if(string.IsNullOrEmpty(access_token))
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, "Token not found into the request!", "U_RT_02", StatusCodes.Status404NotFound);
+            }
+
+            ServiceResult validationResult = await ValidateUserToken(currentUserId, access_token, refresh_token);
+            if (!validationResult.Success)
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, validationResult.Error, "U_RT_03", StatusCodes.Status404NotFound);
+            }
             
-            tokenUserDto = UserBo.ConvertToTokenUserDto(user);
+            UserBo user = null;
+            FilterCriteria filterCriteria = new FilterCriteria();
+            filterCriteria.QueryFilter = "Id = " + this.currentUserId;
+            filterCriteria.IncludeProperties = "UserType,UserRole,UserRole.Role,UserRole.Role.GrandRole";
+            ServiceResult<IEnumerable<UserBo>> userResult = await serviceManager.User_Service.FindAsync(filterCriteria);
+            if (!userResult.Success || userResult.Data == null)
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, "Logged user not found!", "U_RT_04", StatusCodes.Status404NotFound);
+            }
+            else
+            {
+                user = userResult.Data.FirstOrDefault();
+            }
 
-            RefreshTokenBo refreshTokenBo = GenerateRefreshToken();
-            refreshTokenBo.UserId = user.Id;
-            user.RefreshToken.Add(refreshTokenBo);
-            tokenUserDto.RefreshToken = refreshTokenBo.Token;
+            ServiceResult<TokenResponseDto> userTokenResult = await GetTokenResponseAsync(user);
+            if(!userTokenResult.Success)
+            {
+                return GenericResponse<TokenResponseDto>.Error(ResultType.Error, userTokenResult.Error, "U_RT_05", StatusCodes.Status500InternalServerError);
+            }
 
-            await serviceManager.RefreshToken_Service.CreateAsync(refreshTokenBo);
-            await serviceManager.UserLogin_Service.CreateAsync(new UserLoginBo() { UserId = user.Id });
+            return GenericResponse<TokenResponseDto>.Ok(userTokenResult.Data);
+        }
 
+        // POST: api/User/Logout/
+        [HttpPut("Logout")]
+        public async Task<GenericResponse> Logout()
+        {
+            try{
+                Claim claim = null;
+                long userTokenId=0;
+                string access_token = "";
+                IHttpContextAccessor httpContextAccessor = (IHttpContextAccessor)serviceManager.serviceContext.Items["IHttpContextAccessor"];
+                if(httpContextAccessor != null && httpContextAccessor.HttpContext != null && httpContextAccessor.HttpContext.User != null)
+                {
+                    claim = httpContextAccessor.HttpContext.User.Claims.FirstOrDefault(c => c.Type == "utid");
+                    if(claim != null)
+                    {
+                        if(!long.TryParse(claim.Value, out userTokenId))
+                            userTokenId=0;
+                    }
+                }
+
+                if(userTokenId == 0)
+                {
+                    access_token = serviceManager.serviceContext.Items["Token"].ToString();
+                    if(string.IsNullOrEmpty(access_token))
+                    {
+                        return GenericResponse.Error(ResultType.Error, "Token not found into the request!", "U_LO_01", StatusCodes.Status404NotFound);
+                    }
+                }
+                                
+                UserTokenBo userTokenBo = null;
+                ServiceResult<IEnumerable<UserTokenBo>> result = null;
+                if(userTokenId > 0)
+                {
+                    result = await serviceManager.UserToken_Service.GetAsync(
+                                    filter: (rt => rt.Id == userTokenId && rt.UserId == this.currentUserId), 
+                                    orderBy: (rt => rt.OrderByDescending(x => x.ExpiryDate)));
+                }
+                else
+                {
+                    result = await serviceManager.UserToken_Service.GetAsync(
+                                    filter: (rt => rt.AccessToken == access_token && rt.UserId == this.currentUserId), 
+                                    orderBy: (rt => rt.OrderByDescending(x => x.ExpiryDate)));
+                }
+                if(!result.Success)
+                {
+                    return GenericResponse.Error(ResultType.Error, "User Token Not Found!", "U_LO_02", StatusCodes.Status404NotFound);
+                }
+
+                userTokenBo = result.Data.FirstOrDefault();
+                userTokenBo.LogoutTime=DateTime.Now;
+                userTokenBo.IsLogout = true;
+                await serviceManager.UserToken_Service.UpdateAsync(userTokenBo.Id, userTokenBo);
+
+                return GenericResponse.Ok();   
+            }
+            catch(Exception ex) {
+                return GenericResponse.Error(ResultType.Error, ex.Message, "U_LO_03", StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        private async Task<ServiceResult<TokenResponseDto>> GetTokenResponseAsync(UserBo user)
+        {
+            string accessToken="";                                         
+            string refreshToken = GenerateRefreshToken();                            
+            ServiceResult<TokenResponseDto> response = null;
+
+            UserTokenBo userTokenBo = GenerateUserToken(user);
+            userTokenBo.RefreshToken = refreshToken;
+            userTokenBo.AccessToken = "";
+
+            ServiceResult<UserTokenBo> userTokenResult = await serviceManager.UserToken_Service.CreateAsync(userTokenBo);
+            if(!userTokenResult.Success)
+            {
+                response = new ServiceResult<TokenResponseDto>(null, false, "User Token Create Failed!");
+                return response;
+            }
+            userTokenBo = userTokenResult.Data;
+            
             try
             {
-                //sign your token here here..            
-                tokenUserDto.AccessToken = GenerateAccessToken(user);
-                return tokenUserDto;
+                //sign your token here here..   
+                accessToken = GenerateAccessToken(userTokenBo.Id, user);    
             }
             catch(Exception ex)
             {
-                return BadRequest("Token Create Failed! " + (ex.Message) );
+                response = new ServiceResult<TokenResponseDto>(null, false, "Token Create Failed! " + (ex.Message) );
+                return response;
             }
+            userTokenBo.AccessToken = accessToken;
+            await serviceManager.UserToken_Service.UpdateAsync(userTokenBo.Id, userTokenBo);
+            await serviceManager.UserLogin_Service.CreateAsync(new UserLoginBo() { UserId = user.Id, LoginTime=DateTime.UtcNow });
+
+            TokenResponseDto tokenResponseDto = UserBo.ConvertToTokenResponseDto(user);              
+            tokenResponseDto.AccessToken = accessToken;
+            tokenResponseDto.RefreshToken = refreshToken; 
+            
+            response = new ServiceResult<TokenResponseDto>(tokenResponseDto, true, "");
+            return response;
         }
 
-        // GET: api/Authenticate/
-        [HttpPost("RefreshToken")]
-        [AllowAnonymous]
-        public async Task<ActionResult<TokenUserDto>> RefreshToken([FromBody] RefreshRequestDto refreshRequestDto)
+        private async Task<ServiceResult> ValidateUserToken(long userid, string access_token, string refresh_token)
         {
-            UserBo userBo = await GetUserFromAccessToken(refreshRequestDto.Access_Token);
-
-            bool validation = await ValidateRefreshToken(userBo, refreshRequestDto.Refresh_Token);
-            if (userBo != null && validation)
+            ServiceResult response = new ServiceResult(false,"");
+            ServiceResult<IEnumerable<UserTokenBo>> userTokenResult = await serviceManager.UserToken_Service.GetAsync(
+                                                                                    filter: (x => x.UserId == userid && x.RefreshToken == refresh_token),
+                                                                                    orderBy: (x => x.OrderByDescending(x => x.ExpiryDate)));
+            if(!userTokenResult.Success || userTokenResult.Data == null || userTokenResult.Data.FirstOrDefault() == null)
             {
-                TokenUserDto tokenUserDto = UserBo.ConvertToTokenUserDto(userBo);
-                tokenUserDto.AccessToken = GenerateAccessToken(userBo);
-
-                return tokenUserDto;
+                response = new ServiceResult(false, "Refresh token not found!");
+                return response;
+            }            
+            UserTokenBo userTokenBo = userTokenResult.Data.FirstOrDefault();
+            if(userTokenBo.ExpiryDate < DateTime.UtcNow)
+            {
+                response = new ServiceResult(false, "Refresh token expired!");
+                return response;
+            }
+            if(userTokenBo.IsLogout)
+            {
+                response = new ServiceResult(false, "Refresh token logouted!");
+                return response;
+            }
+            if(userTokenBo.AccessToken != access_token)
+            {
+                response = new ServiceResult(false, "Access token mismatch!");
+                return response;
             }
 
-            return null;
+            response = new ServiceResult(true, "");
+            return response;
         }
 
-        private async Task<bool> ValidateRefreshToken(UserBo userDto, string refreshToken)
+        private UserTokenBo GenerateUserToken(UserBo userBo)
         {
-            RefreshTokenBo refreshTokenDto = null;
-            ServiceResult<IEnumerable<RefreshTokenBo>> result = await serviceManager.RefreshToken_Service.GetAsync(filter: (rt => rt.Token == refreshToken), orderBy: (rt => rt.OrderBy(x => x.ExpiryDate)));
-            if (result.Success)
-            {
-                refreshTokenDto = result.Data.FirstOrDefault();
-            }
-           
-            if (refreshTokenDto == null)
-            {
-                return false;
-            }
+            UserTokenBo userToken = new UserTokenBo();
+            userToken.UserId = userBo.Id;            
+            userToken.LoginTime=DateTime.UtcNow;
+            // Token Life Time Setting            
+            int tokenLifeTimeSec = (userBo.UserType != null && userBo.UserType.TokenLifeTime > 0) ? userBo.UserType.TokenLifeTime : 60;
+            DateTime dtimeTokenLife = DateTime.UtcNow.AddSeconds(tokenLifeTimeSec);
+            userToken.ExpiryDate = dtimeTokenLife;
 
-            if (refreshTokenDto != null && refreshTokenDto.UserId == userDto.Id && refreshTokenDto.ExpiryDate > DateTime.UtcNow)
-            {
-                return true;
-            }
-
-            return false;
+            return userToken;
         }
 
-        private RefreshTokenBo GenerateRefreshToken()
-        {
-            RefreshTokenBo refreshToken = new RefreshTokenBo();
-
-            var randomNumber = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(randomNumber);
-                refreshToken.Token = Convert.ToBase64String(randomNumber);
-            }
-            refreshToken.ExpiryDate = DateTime.UtcNow.AddDays(1);
-
-            return refreshToken;
-        }
-
-        private string GenerateAccessToken(UserBo userDto)
+        private string GenerateAccessToken(long userTokenId, UserBo userDto)
         {
             /// NOTICE
             /// Token a iligli kullanıcının id değeri ve yetkisinde olan action id leri ekleniyor 
             /// bunun haricinden yeni değerlerin eklenmesi token boyutunu arttıracağından dolayı 
             /// yeni değerlerin eklenmemesi gerekmektedir
             List<Claim> claims = new List<Claim>();
+            claims.Add(new Claim("utid", Convert.ToString(userTokenId)));
             claims.Add(new Claim(ClaimTypes.Name, Convert.ToString(userDto.Id)));
 
             string grandIds = "";
@@ -197,8 +320,22 @@ namespace base_app_webapi.Controllers
             return tokenHandler.WriteToken(token);
         }
 
-        private async Task<UserBo> GetUserFromAccessToken(string accessToken)
+        private string GenerateRefreshToken()
         {
+            string refreshToekn="";
+            var randomNumber = new byte[32];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomNumber);
+                refreshToekn = Convert.ToBase64String(randomNumber);
+            }
+
+            return refreshToekn;
+        }
+        private async Task<ServiceResult<UserBo>> GetUserFromAccessToken(string accessToken)
+        {
+            ServiceResult<UserBo> response = new ServiceResult<UserBo>(null, false, "");
+
             try
             {
                 var tokenHandler = new JwtSecurityTokenHandler();
@@ -209,7 +346,9 @@ namespace base_app_webapi.Controllers
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = false,
-                    ValidateAudience = false
+                    ValidateAudience = false,
+                    ClockSkew = TimeSpan.Zero,
+                    TokenDecryptionKey = new SymmetricSecurityKey(key)
                 };
 
                 SecurityToken securityToken;
@@ -217,42 +356,48 @@ namespace base_app_webapi.Controllers
 
                 JwtSecurityToken jwtSecurityToken = securityToken as JwtSecurityToken;
 
-                if (jwtSecurityToken != null && jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+                if (jwtSecurityToken != null && 
+                    jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.Aes128KW, StringComparison.InvariantCultureIgnoreCase))
                 {
                     var userIdObj = principle.FindFirst(ClaimTypes.Name)?.Value;
                     long userId;
                     if (!long.TryParse(userIdObj, out userId))
-                        return new UserBo();
+                    {
+                        response = new ServiceResult<UserBo>(null, false, "Token UserId not available!");
+                        return response;
+                    }
+                        
 
-                    UserBo userDto = null;
-                    ServiceResult<UserBo> result;
+                    UserBo userDto = null;                    
                     FilterCriteria filterCriteria = new FilterCriteria();
                     filterCriteria.QueryFilter = "Id = " + userId;
                     filterCriteria.IncludeProperties = "UserType,UserRole,UserRole.Role,UserRole.Role.GrandRole";
                     ServiceResult<IEnumerable<UserBo>> resultList = await serviceManager.User_Service.FindAsync(filterCriteria);
-                    if (resultList.Success && resultList.Data != null && resultList.Data.FirstOrDefault() != null)
+                    if (resultList.Success && resultList.Data != null && resultList.Data.FirstOrDefault() != null){
                         userDto = resultList.Data.FirstOrDefault();
+                        response = new ServiceResult<UserBo>(userDto, true, "");
+                    }
                     else
-                        userDto = new UserBo();
-
-                    return userDto;                   
+                        response = new ServiceResult<UserBo>(null, false, "Token User not found!");
+                }
+                else{
+                    response = new ServiceResult<UserBo>(null, false, "JwtSecurityToken Error!");
                 }
             }
             catch (Exception ex)
             {
+                response = new ServiceResult<UserBo>(null, false, "Token User finding error!");
                 Log(ex.Message, LogLevel.Error, this.ControllerContext.RouteData.Values);
-
-                return new UserBo();
             }
 
-            return new UserBo();
+            return response;
         }
         #endregion
 
         // GET: api/Users/5
         [HttpGet("Get/{id}")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserRead)]
-        public async Task<ActionResult<UserDto>> Get(long id)
+        public async Task<GenericResponse<UserDto>> Get(long id)
         {
             UserBo userBo = null;
             FilterCriteria filterCriteria = new FilterCriteria();
@@ -263,38 +408,44 @@ namespace base_app_webapi.Controllers
             {
                 userBo = result.Data.FirstOrDefault();
                 if (userBo == null)
-                    return NotFound();
+                {
+                    return GenericResponse<UserDto>.Error(ResultType.Error, "Not Found!", "U_G_01", StatusCodes.Status404NotFound);
+                }                    
                 else
                 {
                     // Yetki kontrolü yapılıyor
                     ServiceResult<bool> resultAutorized = await GetAutorizedUserStatusById(userBo);
                     if (!resultAutorized.Success || !resultAutorized.Data)
-                        return BadRequest("Not Autorized Access!");
+                    {
+                        return GenericResponse<UserDto>.Error(ResultType.Error, "Not Autorized Access!", "U_G_02", StatusCodes.Status203NonAuthoritative);
+                    }
                 }
 
                 UserDto userDto = UserBo.ConvertToDto(userBo);
                 userDto.Password = "";
 
-                return userDto;
+                return GenericResponse<UserDto>.Ok(userDto);
             }
             else
             {
                 Log(result.Error, LogLevel.Error, this.ControllerContext.RouteData.Values);
-                return BadRequest(result.Error);
+                return GenericResponse<UserDto>.Error(ResultType.Error, result.Error, "U_G_03", StatusCodes.Status500InternalServerError);
             }
         }
 
         // POST: api/Users
         [HttpPost("Create")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserCreate)]
-        public async Task<ActionResult<UserDto>> Post([FromBody] UserDto dto)
+        public async Task<GenericResponse<UserDto>> Post([FromBody] UserDto dto)
         {
             UserBo bo = UserBo.ConvertToBusinessObject(dto);
 
             // Yetki kontrolü yapılıyor
             ServiceResult<bool> resultAutorized = await GetAutorizedUserStatusById(bo);
             if (!resultAutorized.Success || !resultAutorized.Data)
-                return BadRequest("Not Autorized Access!");
+            {
+                return GenericResponse<UserDto>.Error(ResultType.Error, "Not Autorized Access!", "U_PST_01", StatusCodes.Status203NonAuthoritative);
+            }                
 
             ServiceResult<UserBo> result = await serviceManager.User_Service.CreateAsync(bo);
             if (result.Success)
@@ -316,10 +467,10 @@ namespace base_app_webapi.Controllers
             }
             else
             {
-                return BadRequest(result.Error);
+                return GenericResponse<UserDto>.Error(ResultType.Error, result.Error, "U_PST_02", StatusCodes.Status500InternalServerError);
             }
-
-            return dto;
+            
+            return GenericResponse<UserDto>.Ok(dto);
         }
 
         // PUT: api/Users/5
@@ -327,11 +478,11 @@ namespace base_app_webapi.Controllers
         // more details see https://aka.ms/RazorPagesCRUD.
         [HttpPut("Update/{id}")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserUpdate)]
-        public async Task<IActionResult> Put(long id, UserDto dto)
+        public async Task<GenericResponse> Put(long id, UserDto dto)
         {
             if (id != dto.Id)
             {
-                return BadRequest();
+                return GenericResponse.Error(ResultType.Error, "Ids are mismatch!", "U_PT_01", StatusCodes.Status500InternalServerError);
             }
             try
             {
@@ -340,7 +491,9 @@ namespace base_app_webapi.Controllers
                 // Yetki kontrolü yapılıyor
                 ServiceResult<bool> resultAutorized = await GetAutorizedUserStatusById(bo);
                 if (!resultAutorized.Success || !resultAutorized.Data)
-                    return BadRequest("Not Autorized Access!");
+                {
+                    return GenericResponse.Error(ResultType.Error, "Not Autorized Access!", "U_PT_02", StatusCodes.Status203NonAuthoritative);
+                }
 
                 ServiceResult serviceResult = await serviceManager.User_Service.UpdateAsync(id, bo);
                 if (serviceResult.Success)
@@ -359,11 +512,11 @@ namespace base_app_webapi.Controllers
 
                     await serviceManager.CommitAsync();
 
-                    return Ok();
+                    return GenericResponse.Ok();
                 }
                 else
                 {
-                    return BadRequest(serviceResult.Error);
+                    return GenericResponse.Error(ResultType.Error, serviceResult.Error, "U_PT_03", StatusCodes.Status500InternalServerError);
                 }
             }
             catch (DbUpdateConcurrencyException ex)
@@ -373,11 +526,11 @@ namespace base_app_webapi.Controllers
                 bool exist = await UserExists(id);
                 if (!exist)
                 {
-                    return NotFound();
+                    return GenericResponse.Error(ResultType.Error, "Not Found!", "U_PT_04", StatusCodes.Status404NotFound);
                 }
                 else
                 {
-                    return BadRequest(ex.Message);
+                    return GenericResponse.Error(ResultType.Error, ex.Message, "U_PT_05", StatusCodes.Status500InternalServerError);
                 }
             }
         }
@@ -385,7 +538,7 @@ namespace base_app_webapi.Controllers
         // DELETE: api/Users/5
         [HttpDelete("Delete/{id}")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserDelete)]
-        public async Task<ActionResult> Delete(long id)
+        public async Task<GenericResponse> Delete(long id)
         {
             UserBo userDto = null;
             ServiceResult<UserBo> result = await serviceManager.User_Service.GetByIdAsync(id);
@@ -396,29 +549,32 @@ namespace base_app_webapi.Controllers
                 // Yetki kontrolü yapılıyor
                 ServiceResult<bool> resultAutorized = await GetAutorizedUserStatusById(userDto);
                 if (!resultAutorized.Success || !resultAutorized.Data)
-                    return BadRequest("Not Autorized Access!");
+                {
+                    return GenericResponse.Error(ResultType.Error, "Not Autorized Access!", "U_DLT_01", StatusCodes.Status203NonAuthoritative);
+                }
             }
             else
             {
-                return BadRequest("Not Found!");
+                return GenericResponse.Error(ResultType.Error, "Not Found!", "U_DLT_02", StatusCodes.Status404NotFound);
             }
 
             ServiceResult serviceResult = await serviceManager.User_Service.DeleteAsync(id);
             if (serviceResult.Success)
             {
-                return Ok();
+                return GenericResponse.Ok();
             }
             else
             {
                 Log(serviceResult.Error, LogLevel.Error, this.ControllerContext.RouteData.Values);
-                return BadRequest(serviceResult.Error);
+
+                return GenericResponse.Error(ResultType.Error, serviceResult.Error, "U_DLT_03", StatusCodes.Status500InternalServerError);
             }
         }
 
         // GET: api/Users/5
         [HttpPost("GetList")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserRead)]
-        public async Task<ActionResult<IEnumerable<UserDto>>> GetList([FromBody] FilterCriteria filterCriteria)
+        public async Task<GenericResponse<IEnumerable<UserDto>>> GetList([FromBody] FilterCriteria filterCriteria)
         {
             IEnumerable<UserBo> listBo = null;
             IEnumerable<UserDto> listDto = null;
@@ -441,13 +597,17 @@ namespace base_app_webapi.Controllers
                 // Yetki kontrolü yapılıyor
                 ServiceResult<bool> resultAutorized = await GetAutorizedOrganizationStatusById(organizationId);
                 if (!resultAutorized.Success || !resultAutorized.Data)
-                    return BadRequest("Not Autorized Access!");
+                {
+                    return GenericResponse<IEnumerable<UserDto>>.Error(ResultType.Error, "Not Autorized Access!", "U_GL_01", StatusCodes.Status203NonAuthoritative);
+                }
             }
             else
             {
                 ServiceResult<UserBo> userDtoResult = await GetCurrentUser();
                 if (!userDtoResult.Success || userDtoResult.Data == null)
-                    return BadRequest("User Not Found!");
+                {
+                    return GenericResponse<IEnumerable<UserDto>>.Error(ResultType.Error, "User Not Found!", "U_GL_02", StatusCodes.Status404NotFound);
+                }
 
                 organizationId = userDtoResult.Data.OrganizationId;
             }
@@ -455,14 +615,13 @@ namespace base_app_webapi.Controllers
             resultList = await serviceManager.User_Service.GetListAsync(organizationId, filterCriteria);
             if (!resultList.Success || resultList.Data == null)
             {
-                return NotFound(resultList.Error);
+                return GenericResponse<IEnumerable<UserDto>>.Error(ResultType.Error, resultList.Error, "U_GL_03", StatusCodes.Status500InternalServerError);
             }
             
             listBo = resultList.Data;
-
             listDto = listBo.Select(x => UserBo.ConvertToDto(x)).ToList();
 
-            return Ok(listDto);
+            return GenericResponse<IEnumerable<UserDto>>.Ok(listDto); 
         }
 
         private async Task<bool> UserExists(long id)

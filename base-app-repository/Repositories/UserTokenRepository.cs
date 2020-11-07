@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 
 namespace base_app_repository.Repositories
 {
-    public class RefreshTokenRepository : BaseRepository<RefreshToken>, IRefreshTokenRepository<RefreshToken>
+    public class UserTokenRepository : BaseRepository<UserToken>, IUserTokenRepository<UserToken>
     {
-        public RefreshTokenRepository(BaseDbContext context) : base(context)
+        public UserTokenRepository(BaseDbContext context) : base(context)
         {
         }
 
-        public async Task<RefreshToken> GetLastByUserIdAsync(long userid)
+        public async Task<UserToken> GetLastByUserIdAsync(long userid)
         {
             return await dbSet.Where(x => x.UserId == userid).OrderByDescending(x => x.Id).FirstOrDefaultAsync();
         }

@@ -59,13 +59,13 @@ namespace base_app_repository
             }
         }
 
-        private RefreshTokenRepository refreshTokenRepository;
-        public RefreshTokenRepository RefreshTokenRepository
+        private UserTokenRepository userTokenRepository;
+        public UserTokenRepository UserTokenRepository
         {
             get
             {
-                this.refreshTokenRepository = this.refreshTokenRepository ?? new RefreshTokenRepository(context);
-                return this.refreshTokenRepository;
+                this.userTokenRepository = this.userTokenRepository ?? new UserTokenRepository(context);
+                return this.userTokenRepository;
             }
         }
 

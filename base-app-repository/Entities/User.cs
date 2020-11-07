@@ -7,9 +7,9 @@ namespace base_app_repository.Entities
     {
         public User()
         {
-            RefreshToken = new HashSet<RefreshToken>();
             UserLogin = new HashSet<UserLogin>();
             UserRole = new HashSet<UserRole>();
+            UserToken = new HashSet<UserToken>();
         }
 
         public long Id { get; set; }
@@ -25,8 +25,8 @@ namespace base_app_repository.Entities
 
         public virtual Organization Organization { get; set; }
         public virtual UserType UserType { get; set; }
-        public virtual ICollection<RefreshToken> RefreshToken { get; set; }
         public virtual ICollection<UserLogin> UserLogin { get; set; }
         public virtual ICollection<UserRole> UserRole { get; set; }
+        public virtual ICollection<UserToken> UserToken { get; set; }
     }
 }

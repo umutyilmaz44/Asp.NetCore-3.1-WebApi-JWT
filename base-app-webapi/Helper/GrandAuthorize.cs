@@ -4,7 +4,7 @@ using System;
 using System.Linq;
 using System.Security.Claims;
 
-namespace base_app_webapi.Models
+namespace base_app_webapi.Helper
 {
     public class GrandAuthorizeAttribute : TypeFilterAttribute
     {
@@ -25,9 +25,9 @@ namespace base_app_webapi.Models
 
         public void OnAuthorization(AuthorizationFilterContext context)
         {
+            IActionResult actionResult = null;
             try
-            {
-                IActionResult actionResult = null;
+            {                
                 switch (_Claim.Type)
                 {
                     case GrandPermission.EndpointPermission:
@@ -70,14 +70,14 @@ namespace base_app_webapi.Models
                             }
                         }
                         break;
-                }
-                if (actionResult != null)
-                    context.Result = actionResult;
+                }                
             }
             catch (Exception ex)
             {
-
+                actionResult = new ForbidResult(ex.Message);
             }
-        }
+
+            if (actionResult != null)
+                context.Result = actionResult;        }
     }
 }

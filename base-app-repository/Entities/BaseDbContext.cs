@@ -19,11 +19,11 @@ namespace base_app_repository.Entities
         public virtual DbSet<GrandRole> GrandRole { get; set; }
         public virtual DbSet<Organization> Organization { get; set; }
         public virtual DbSet<Page> Page { get; set; }
-        public virtual DbSet<RefreshToken> RefreshToken { get; set; }
         public virtual DbSet<Role> Role { get; set; }
         public virtual DbSet<User> User { get; set; }
         public virtual DbSet<UserLogin> UserLogin { get; set; }
         public virtual DbSet<UserRole> UserRole { get; set; }
+        public virtual DbSet<UserToken> UserToken { get; set; }
         public virtual DbSet<UserType> UserType { get; set; }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -31,7 +31,7 @@ namespace base_app_repository.Entities
             if (!optionsBuilder.IsConfigured)
             {
 #warning To protect potentially sensitive information in your connection string, you should move it out of source code. See http://go.microsoft.com/fwlink/?LinkId=723263 for guidance on storing connection strings.
-                optionsBuilder.UseNpgsql("Host=192.168.0.112;Database=baseDb;Username=postgres;Password=Vhs1569*");
+                optionsBuilder.UseNpgsql("Host=localhost;Database=baseDb;Username=postgres;Password=postgres");
             }
         }
 
@@ -127,39 +127,6 @@ namespace base_app_repository.Entities
                     .IsRequired()
                     .HasColumnName("page_name")
                     .HasColumnType("character varying");
-            });
-
-            modelBuilder.Entity<RefreshToken>(entity =>
-            {
-                entity.ToTable("refresh_token");
-
-                entity.HasIndex(e => e.ExpiryDate)
-                    .HasName("refreshtoken_expirydate_idx");
-
-                entity.HasIndex(e => e.Token)
-                    .HasName("refresh_token_token_idx");
-
-                entity.HasIndex(e => e.UserId)
-                    .HasName("refreshtoken_userid_idx");
-
-                entity.Property(e => e.Id).HasColumnName("id");
-
-                entity.Property(e => e.ExpiryDate)
-                    .HasColumnName("expiry_date")
-                    .HasColumnType("timestamp(0) without time zone");
-
-                entity.Property(e => e.Token)
-                    .IsRequired()
-                    .HasColumnName("token")
-                    .HasColumnType("character varying");
-
-                entity.Property(e => e.UserId).HasColumnName("user_id");
-
-                entity.HasOne(d => d.User)
-                    .WithMany(p => p.RefreshToken)
-                    .HasForeignKey(d => d.UserId)
-                    .OnDelete(DeleteBehavior.ClientSetNull)
-                    .HasConstraintName("refreshtoken_fk");
             });
 
             modelBuilder.Entity<Role>(entity =>
@@ -300,6 +267,56 @@ namespace base_app_repository.Entities
                     .HasConstraintName("user_role_fk");
             });
 
+            modelBuilder.Entity<UserToken>(entity =>
+            {
+                entity.ToTable("user_token");
+
+                entity.HasIndex(e => e.AccessToken)
+                    .HasName("refresh_token_token_idx");
+
+                entity.HasIndex(e => e.ExpiryDate)
+                    .HasName("refreshtoken_expirydate_idx");
+
+                entity.HasIndex(e => e.UserId)
+                    .HasName("refreshtoken_userid_idx");
+
+                entity.Property(e => e.Id)
+                    .HasColumnName("id")
+                    .HasDefaultValueSql("nextval('refresh_token_id_seq'::regclass)");
+
+                entity.Property(e => e.AccessToken)
+                    .IsRequired()
+                    .HasColumnName("access_token")
+                    .HasColumnType("character varying");
+
+                entity.Property(e => e.ExpiryDate)
+                    .HasColumnName("expiry_date")
+                    .HasColumnType("timestamp(0) without time zone");
+
+                entity.Property(e => e.IsLogout).HasColumnName("is_logout");
+
+                entity.Property(e => e.LoginTime)
+                    .HasColumnName("login_time")
+                    .HasDefaultValueSql("now()");
+
+                entity.Property(e => e.LogoutTime)
+                    .HasColumnName("logout_time")
+                    .HasDefaultValueSql("now()");
+
+                entity.Property(e => e.RefreshToken)
+                    .IsRequired()
+                    .HasColumnName("refresh_token")
+                    .HasColumnType("character varying");
+
+                entity.Property(e => e.UserId).HasColumnName("user_id");
+
+                entity.HasOne(d => d.User)
+                    .WithMany(p => p.UserToken)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.ClientSetNull)
+                    .HasConstraintName("refreshtoken_fk");
+            });
+
             modelBuilder.Entity<UserType>(entity =>
             {
                 entity.ToTable("user_type");
@@ -311,7 +328,8 @@ namespace base_app_repository.Entities
 
                 entity.Property(e => e.TokenLifeTime)
                     .HasColumnName("token_life_time")
-                    .HasDefaultValueSql("60");
+                    .HasDefaultValueSql("60")
+                    .HasComment("second based time interval");
 
                 entity.Property(e => e.TypeDescription)
                     .HasColumnName("type_description")

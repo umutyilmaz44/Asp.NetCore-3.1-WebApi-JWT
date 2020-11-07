@@ -4,7 +4,7 @@ using System.Text;
 
 namespace base_app_common.dto.user
 {
-    public class TokenUserDto
+    public class TokenResponseDto
     {
         public long Id { get; set; }
         public string FirstName { get; set; }

@@ -21,8 +21,8 @@ namespace base_app_service
             CreateMap<Page, PageBo>();
             CreateMap<PageBo, Page>();
 
-            CreateMap<RefreshToken, RefreshTokenBo>();
-            CreateMap<RefreshTokenBo, RefreshToken>();
+            CreateMap<UserToken, UserTokenBo>();
+            CreateMap<UserTokenBo, UserToken>();
 
             CreateMap<Role, RoleBo>();
             CreateMap<RoleBo, Role>();

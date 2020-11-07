@@ -19,7 +19,7 @@ namespace base_app_service
 
         UserRoleService UserRole_Service { get; }
 
-        RefreshTokenService RefreshToken_Service { get; }
+        UserTokenService UserToken_Service { get; }
 
         Task CommitAsync();
     }

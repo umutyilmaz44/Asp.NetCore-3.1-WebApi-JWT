@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace base_app_repository.Repositories
 {
-    interface IRefreshTokenRepository<TEntity> : IBaseRepository<TEntity> where TEntity : class
+    interface IUserTokenRepository<TEntity> : IBaseRepository<TEntity> where TEntity : class
     {
         Task<TEntity> GetLastByUserIdAsync(long userid);
     }

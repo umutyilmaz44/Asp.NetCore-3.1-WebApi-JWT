@@ -52,7 +52,7 @@ namespace base_app_service.Services
                 entity = mapper.Map<User>(bo);
                 entity.UserLogin = null;
                 entity.Organization = null;
-                entity.RefreshToken = null;
+                entity.UserToken = null;
                 entity.UserRole = null;
                 entity.UserType = null;                
 
@@ -72,7 +72,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult> DeleteAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult(false, "Id is empty!");
 
             try
@@ -81,8 +81,8 @@ namespace base_app_service.Services
                 if(user == null)
                     return new ServiceResult(false, "User not found!");
 
-                if (user.RefreshToken.Count == 1 && user.RefreshToken.FirstOrDefault() == null)
-                    user.RefreshToken = new HashSet<RefreshToken>();
+                if (user.UserToken.Count == 1 && user.UserToken.FirstOrDefault() == null)
+                    user.UserToken = new HashSet<UserToken>();
 
                 user.Deleted = true;
                 await repositoryManager.UserRepository.UpdateAsync(id, user);
@@ -145,7 +145,7 @@ namespace base_app_service.Services
 
         public async Task<ServiceResult<UserBo>> GetByIdAsync(long id)
         {
-            if (id == null || id <= 0)
+            if (id <= 0)
                 return new ServiceResult<UserBo>(null, false, "Id is empty!");
 
             try
@@ -154,8 +154,8 @@ namespace base_app_service.Services
                 if (entity != null)
                 {
                     entity.Password = "";
-                    var refreshToken = await repositoryManager.RefreshTokenRepository.GetLastByUserIdAsync(id);
-                    entity.RefreshToken = new List<RefreshToken>() { refreshToken };
+                    var UserToken = await repositoryManager.UserTokenRepository.GetLastByUserIdAsync(id);
+                    entity.UserToken = new List<UserToken>() { UserToken };
                     entity.Password = "";
                     UserBo bo = mapper.Map<UserBo>(entity);
                     return new ServiceResult<UserBo>(bo, true);
@@ -219,8 +219,8 @@ namespace base_app_service.Services
                     entity.OrganizationId = bo.OrganizationId;
                     if (!string.IsNullOrEmpty(bo.Password))
                         entity.Password = bo.Password;
-                    if (entity.RefreshToken.Count == 1 && entity.RefreshToken.FirstOrDefault() == null)
-                        entity.RefreshToken = new HashSet<RefreshToken>();
+                    if (entity.UserToken.Count == 1 && entity.UserToken.FirstOrDefault() == null)
+                        entity.UserToken = new HashSet<UserToken>();
 
                     await repositoryManager.UserRepository.UpdateAsync(id, entity);
                     await repositoryManager.CommitAsync();

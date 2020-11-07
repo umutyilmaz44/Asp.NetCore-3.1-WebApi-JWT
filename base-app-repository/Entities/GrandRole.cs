@@ -1,4 +1,7 @@
-﻿namespace base_app_repository.Entities
+﻿using System;
+using System.Collections.Generic;
+
+namespace base_app_repository.Entities
 {
     public partial class GrandRole
     {

@@ -2,8 +2,9 @@
 using base_app_common.dto.user;
 using base_app_service;
 using base_app_service.Bo;
-using base_app_webapi.Models;
+using base_app_webapi.Helper;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
@@ -14,6 +15,7 @@ namespace base_app_webapi.Controllers
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
+    [AuthorizeExt]
     public class UserRoleController : BaseController
     {
         public UserRoleController(IServiceManager serviceManager, ILogger<BaseController> logger) : base(serviceManager, logger)
@@ -23,7 +25,7 @@ namespace base_app_webapi.Controllers
         // GET: api/Users/5
         [HttpGet("Get/{id}")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserRead)]
-        public async Task<ActionResult<UserRoleDto>> Get(long id)
+        public async Task<GenericResponse<UserRoleDto>> Get(long id)
         {
             UserRoleBo bo = null;
             ServiceResult<UserRoleBo> result = await serviceManager.UserRole_Service.GetByIdAsync(id);
@@ -38,17 +40,17 @@ namespace base_app_webapi.Controllers
 
             if (bo == null)
             {
-                return NotFound();
+                return GenericResponse<UserRoleDto>.Error(ResultType.Error, "Not Found!", "UR_G_01", StatusCodes.Status404NotFound);
             }
 
-            return UserRoleBo.ConvertToDto(bo);
+            return GenericResponse<UserRoleDto>.Ok(UserRoleBo.ConvertToDto(bo));
         }
 
         // POST: api/Users
         [HttpPost("Create")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserCreate)]
-        public async Task<ActionResult<UserRoleDto>> Post([FromBody] UserRoleDto dto)
-        {
+        public async Task<GenericResponse<UserRoleDto>> Post([FromBody] UserRoleDto dto)
+        {            
             UserRoleBo bo = UserRoleBo.ConvertToBusinessObject(dto);
             ServiceResult<UserRoleBo> result = await serviceManager.UserRole_Service.CreateAsync(bo);
             if (result.Success)
@@ -59,15 +61,15 @@ namespace base_app_webapi.Controllers
             }
             else
             {
-                return BadRequest(result.Error);
+                return GenericResponse<UserRoleDto>.Error(ResultType.Error, result.Error, "UR_PST_01", StatusCodes.Status500InternalServerError);
             }
 
             if (bo == null)
             {
-                return NotFound();
+                return GenericResponse<UserRoleDto>.Error(ResultType.Error, "Not Found!", "UR_PST_02", StatusCodes.Status404NotFound);
             }
-
-            return UserRoleBo.ConvertToDto(bo);
+            
+            return GenericResponse<UserRoleDto>.Ok(UserRoleBo.ConvertToDto(bo));
         }
 
         // PUT: api/Users/5
@@ -75,11 +77,11 @@ namespace base_app_webapi.Controllers
         // more details see https://aka.ms/RazorPagesCRUD.
         [HttpPut("Update/{id}")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserUpdate)]
-        public async Task<IActionResult> Put(long id, UserRoleDto dto)
+        public async Task<GenericResponse> Put(long id, UserRoleDto dto)
         {
             if (id != dto.Id)
             {
-                return BadRequest();
+                return GenericResponse.Error(ResultType.Error, "Ids are mismatch!", "UR_PT_01", StatusCodes.Status500InternalServerError);
             }
             try
             {
@@ -89,34 +91,34 @@ namespace base_app_webapi.Controllers
                 {
                     await serviceManager.CommitAsync();
 
-                    return Ok();
+                    return GenericResponse.Ok();
                 }
                 else
                 {
-                    return BadRequest(serviceResult.Error);
+                    return GenericResponse.Error(ResultType.Error, serviceResult.Error, "UR_PT_02", StatusCodes.Status500InternalServerError);
                 }
             }
             catch (Exception ex)
             {
                 Log(ex.Message, LogLevel.Error, this.ControllerContext.RouteData.Values);
-                return BadRequest(ex.Message);
+                return GenericResponse.Error(ResultType.Error, ex.Message, "UR_PT_03", StatusCodes.Status500InternalServerError);
             }
         }
 
         // DELETE: api/Users/5
         [HttpDelete("Delete/{id}")]
         [GrandAuthorize(GrandPermission.EndpointPermission, Grands.UserDelete)]
-        public async Task<ActionResult> Delete(long id)
+        public async Task<GenericResponse> Delete(long id)
         {
             ServiceResult serviceResult = await serviceManager.UserRole_Service.DeleteAsync(id);
             if (serviceResult.Success)
             {
-                return Ok();
+                return GenericResponse.Ok();
             }
             else
             {
                 Log(serviceResult.Error, LogLevel.Error, this.ControllerContext.RouteData.Values);
-                return BadRequest(serviceResult.Error);
+                return GenericResponse.Error(ResultType.Error, serviceResult.Error, "UR_DLT_01", StatusCodes.Status500InternalServerError);
             }
         }
     }

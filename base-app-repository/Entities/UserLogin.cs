@@ -10,6 +10,5 @@ namespace base_app_repository.Entities
         public DateTime LoginTime { get; set; }
 
         public virtual User User { get; set; }
-
     }
 }

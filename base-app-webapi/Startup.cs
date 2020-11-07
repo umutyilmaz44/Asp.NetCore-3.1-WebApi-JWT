@@ -8,7 +8,6 @@ using base_app_repository.Entities;
 using base_app_service;
 using base_app_webapi.Helper;
 using base_app_webapi.Middlewares;
-using base_app_webapi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
@@ -69,6 +68,17 @@ namespace base_app_webapi
                     ClockSkew = TimeSpan.Zero,
                     TokenDecryptionKey = new SymmetricSecurityKey(key)
                 };
+                x.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+                        {
+                            context.Response.Headers.Add("Token-Expired", "true");
+                        }
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
             IdentityModelEventSource.ShowPII = true;
@@ -79,6 +89,7 @@ namespace base_app_webapi
             {
                 gen.SwaggerDoc("v1.0", new Microsoft.OpenApi.Models.OpenApiInfo { Title = appSettings.Audience, Version = "v1.0" });
                 gen.DocumentFilter<SwaggerFilterOutControllers>(swaggerRestrictions);
+                gen.CustomSchemaIds(x => GetCustomSchemaId(x));
             });
 
             services.TryAddSingleton<ILookupNormalizer, UpperInvariantLookupNormalizer>();            
@@ -135,16 +146,19 @@ namespace base_app_webapi
             {
                 config.Run(async context =>
                 {
-                    context.Response.StatusCode = 500;
-                    context.Response.ContentType = "application/json";
-
-                    var error = context.Features.Get<IExceptionHandlerFeature>();
-                    if (error != null)
+                    await Task.Run(() =>
                     {
-                        var logger = NLog.Web.NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
-                        var ex = error.Error;
-                        logger.Error("Unhandled exception!", ex);
-                    }
+                        context.Response.StatusCode = 500;
+                        context.Response.ContentType = "application/json";
+
+                        var error = context.Features.Get<IExceptionHandlerFeature>();
+                        if (error != null)
+                        {
+                            var logger = NLog.Web.NLogBuilder.ConfigureNLog("nlog.config").GetCurrentClassLogger();
+                            var ex = error.Error;
+                            logger.Error(ex, "Unhandled exception!");
+                        }
+                    });                    
                 });
             });
 
@@ -152,6 +166,31 @@ namespace base_app_webapi
             {
                 endpoints.MapControllers();
             });
+        }
+    
+        public string GetCustomSchemaId(Type type)
+        {
+            try
+            {
+                string response ="";
+                if(!(type.IsGenericType && type.GenericTypeArguments.Length > 0))
+                    response = type.Name;
+                else 
+                {
+                    string name = type.Name.Substring(0, type.Name.IndexOf("`")) + "<{type_name}>";
+                    string type_name = GetTypeName(type.GenericTypeArguments[0]);
+                    response = name.Replace("{type_name}",type_name);
+                    //type.GenericTypeArguments[0].Name
+                }
+                Console.WriteLine(type.Name + " => " + response);
+                return response;
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(type.Name);
+                Console.WriteLine(ex);
+                return type.Name;
+            }
         }
     }
 }
