@@ -178,7 +178,7 @@ namespace base_app_webapi
                 else 
                 {
                     string name = type.Name.Substring(0, type.Name.IndexOf("`")) + "<{type_name}>";
-                    string type_name = GetTypeName(type.GenericTypeArguments[0]);
+                    string type_name = GetCustomSchemaId(type.GenericTypeArguments[0]);
                     response = name.Replace("{type_name}",type_name);
                     //type.GenericTypeArguments[0].Name
                 }
