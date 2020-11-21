@@ -33,10 +33,12 @@ namespace base_app_webapi.Controllers
     public class UserController : BaseController
     {
         private readonly JWTSettings jwtSettings;
-
-        public UserController(IServiceManager serviceManager, IOptions<JWTSettings> jwtSettings, ILogger<BaseController> logger) : base(serviceManager, logger)
+        private readonly IMailer mailer;
+        public UserController(IServiceManager serviceManager, IOptions<JWTSettings> jwtSettings, ILogger<BaseController> logger, IMailer mailer) 
+                    : base(serviceManager, logger)
         {
             this.jwtSettings = jwtSettings.Value;
+            this.mailer = mailer;
         }
 
         #region Authentication   
@@ -80,6 +82,8 @@ namespace base_app_webapi.Controllers
                 return GenericResponse<TokenResponseDto>.Error(ResultType.Error, userTokenResult.Error, "U_GT_03", StatusCodes.Status500InternalServerError);
             }
 
+            // Deneme amaçlı eklendi
+            // ServiceResult service = await mailer.SendAsync(new string[]{"deneme@gmail.com","test@gmail.com"}, null, null, "test","denemem eerer", null);
             return GenericResponse<TokenResponseDto>.Ok((userTokenResult.Data));
         }
 

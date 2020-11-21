@@ -24,6 +24,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 namespace base_app_webapi
 {
@@ -90,11 +91,36 @@ namespace base_app_webapi
                 gen.SwaggerDoc("v1.0", new Microsoft.OpenApi.Models.OpenApiInfo { Title = appSettings.Audience, Version = "v1.0" });
                 gen.DocumentFilter<SwaggerFilterOutControllers>(swaggerRestrictions);
                 gen.CustomSchemaIds(x => GetCustomSchemaId(x));
+                gen.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()  
+                {  
+                    Name = "Authorization",  
+                    Type = SecuritySchemeType.ApiKey,  
+                    Scheme = "Bearer",  
+                    BearerFormat = "JWT",  
+                    In = ParameterLocation.Header,  
+                    Description = "JWT Authorization header using the Bearer scheme. \r\n\r\n Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer 12345abcdef\"",  
+                });  
+                gen.AddSecurityRequirement(new OpenApiSecurityRequirement  
+                {  
+                    {  
+                          new OpenApiSecurityScheme  
+                            {  
+                                Reference = new OpenApiReference  
+                                {  
+                                    Type = ReferenceType.SecurityScheme,  
+                                    Id = "Bearer"  
+                                }  
+                            },  
+                            new string[] {}  
+  
+                    }  
+                }); 
             });
 
             services.TryAddSingleton<ILookupNormalizer, UpperInvariantLookupNormalizer>();            
             services.AddScoped<IServiceManager, ServiceManager>();
             services.AddAutoMapper(typeof(Startup), typeof(AutoMapperProfile));
+            services.AddSingleton<IMailer, Mailer>();
 
             services.AddCors(); // Make sure you call this previous to AddMvc
 
