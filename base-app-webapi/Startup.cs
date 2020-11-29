@@ -121,6 +121,7 @@ namespace base_app_webapi
             services.AddScoped<IServiceManager, ServiceManager>();
             services.AddAutoMapper(typeof(Startup), typeof(AutoMapperProfile));
             services.AddSingleton<IMailer, Mailer>();
+            services.AddSingleton<IPrinter, Printer>();
 
             services.AddCors(); // Make sure you call this previous to AddMvc
 

@@ -66,7 +66,7 @@ namespace base_app_webapi.Controllers
             }
 
             if (user == null)
-            {
+            {                
                 return GenericResponse<TokenResponseDto>.Error(ResultType.Error, "Not Found!", "U_GT_01", StatusCodes.Status404NotFound);
             }          
             
@@ -81,9 +81,7 @@ namespace base_app_webapi.Controllers
             {
                 return GenericResponse<TokenResponseDto>.Error(ResultType.Error, userTokenResult.Error, "U_GT_03", StatusCodes.Status500InternalServerError);
             }
-
-            // Deneme amaçlı eklendi
-            // ServiceResult service = await mailer.SendAsync(new string[]{"deneme@gmail.com","test@gmail.com"}, null, null, "test","denemem eerer", null);
+            
             return GenericResponse<TokenResponseDto>.Ok((userTokenResult.Data));
         }
 
